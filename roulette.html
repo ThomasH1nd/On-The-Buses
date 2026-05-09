@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lothian Roulette</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f4f9; text-align: center; padding: 20px; color: #333; margin: 0; }
+        h1 { color: #8B0000; margin-bottom: 5px; }
+        p { margin-top: 0; color: #555; }
+        .card { background: white; border-radius: 12px; padding: 20px; max-width: 400px; margin: 15px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+        button { background-color: #8B0000; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 15px; }
+        button:active { background-color: #5a0000; }
+        #results { display: none; background-color: #e8f5e9; border: 2px solid #4caf50; }
+        .dice-display { font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .highlight { color: #8B0000; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>On The Buses 🎲</h1>
+    <p>Roll the dice. Ride the bus. Find the pub.</p>
+
+    <div class="card">
+        <label for="busSelect"><strong>1. Which bus number?</strong></label>
+        <select id="busSelect" onchange="updateDirections()">
+            <option value="" disabled selected>Select bus...</option>
+        </select>
+
+        <label for="dirSelect"><strong>2. Which direction?</strong></label>
+        <select id="dirSelect" onchange="updateStops()" disabled>
+            <option value="" disabled selected>Select bus first...</option>
+        </select>
+
+        <label for="stopSelect"><strong>3. Where are you getting on?</strong></label>
+        <select id="stopSelect" disabled>
+            <option value="" disabled selected>Select direction first...</option>
+        </select>
+
+        <button onclick="playRoulette()">Roll Dice & Find Pub!</button>
+    </div>
+
+    <div class="card" id="results">
+        <h2>The Result</h2>
+        <div class="dice-display">🎲 You rolled a <span id="diceResult" class="highlight">0</span>!</div>
+        <p>Get off the bus at:</p>
+        <h3 id="destStop" class="highlight">Stop Name</h3>
+        <hr>
+        <p>Your nearest pub is:</p>
+        <h3 id="destPub" class="highlight">Pub Name</h3>
+        <p><small>Distance: <span id="pubDist">0</span> meters walk.</small></p>
+    </div>
+
+    <script src="routes.js"></script>
+    <script src="pubs.js"></script>
+
+    <script>
+        // --- LOGIC SECTION ---
+        
+        // Auto-populate the Bus Dropdown based on what's in routes.js
+        window.onload = function() {
+            const busSelect = document.getElementById("busSelect");
+            if (typeof routes !== 'undefined') {
+                Object.keys(routes).forEach(bus => {
+                    let opt = document.createElement("option");
+                    opt.value = bus; opt.innerHTML = "Route " + bus;
+                    busSelect.appendChild(opt);
+                });
+            } else {
+                alert("Error: Could not load routes.js. Make sure it is in the same folder!");
+            }
+        };
+
+        function updateDirections() {
+            const busId = document.getElementById("busSelect").value;
+            const dirSelect = document.getElementById("dirSelect");
+            const stopSelect = document.getElementById("stopSelect");
+            
+            dirSelect.innerHTML = "<option value='' disabled selected>Select direction...</option>";
+            stopSelect.innerHTML = "<option value='' disabled selected>Select direction first...</option>";
+            stopSelect.disabled = true;
+
+            if (busId && routes[busId]) {
+                Object.keys(routes[busId]).forEach(dir => {
+                    let opt = document.createElement("option");
+                    opt.value = dir; opt.innerHTML = dir;
+                    dirSelect.appendChild(opt);
+                });
+                dirSelect.disabled = false;
+            }
+        }
+
+        function updateStops() {
+            const busId = document.getElementById("busSelect").value;
+            const dirId = document.getElementById("dirSelect").value;
+            const stopSelect = document.getElementById("stopSelect");
+            
+            stopSelect.innerHTML = "<option value='' disabled selected>Where are you getting on?</option>";
+
+            if (busId && dirId && routes[busId][dirId]) {
+                routes[busId][dirId].forEach((stop, index) => {
+                    let opt = document.createElement("option");
+                    opt.value = index; opt.innerHTML = stop.name;
+                    stopSelect.appendChild(opt);
+                });
+                stopSelect.disabled = false;
+            }
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; 
+            const rad = Math.PI / 180;
+            const a = Math.sin((lat2 - lat1)*rad/2)**2 + Math.cos(lat1*rad) * Math.cos(lat2*rad) * Math.sin((lon2 - lon1)*rad/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function playRoulette() {
+            const busId = document.getElementById("busSelect").value;
+            const dirId = document.getElementById("dirSelect").value;
+            const startIndex = parseInt(document.getElementById("stopSelect").value);
+
+            if (!busId || !dirId || isNaN(startIndex)) {
+                return alert("Please select a bus, direction, and stop!");
+            }
+
+            const die1 = Math.floor(Math.random() * 6) + 1;
+            const die2 = Math.floor(Math.random() * 6) + 1;
+            const roll = die1 + die2;
+
+            const routeStops = routes[busId][dirId];
+            const destStop = routeStops[Math.min(startIndex + roll, routeStops.length - 1)];
+
+            let closest = pubs[0], minD = Infinity;
+            pubs.forEach(p => {
+                let d = getDistance(destStop.lat, destStop.lon, p.lat, p.lon);
+                if (d < minD) { minD = d; closest = p; }
+            });
+
+            document.getElementById("diceResult").innerText = roll + " (" + die1 + "+" + die2 + ")";
+            document.getElementById("destStop").innerText = destStop.name;
+            document.getElementById("destPub").innerText = closest.name;
+            document.getElementById("pubDist").innerText = Math.round(minD);
+            document.getElementById("results").style.display = "block";
+        }
+    </script>
+</body>
+</html>
